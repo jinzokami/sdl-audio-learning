@@ -11,4 +11,7 @@
 
 // TODO: add headers that you want to pre-compile here
 
+#include "SDL/SDL.h"
+#include <stdio.h>
+
 #endif //PCH_H
