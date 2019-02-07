@@ -213,6 +213,8 @@ C = C << 6
 B = A AND 0b0111111
 A = B OR C
 
+from here, return A
+
 LFSR function(15-bit):
 8-bit int A - the low bits of the LFSR seed
 7-bit int B - the high bits of the LFSR seed
@@ -226,5 +228,13 @@ D = C XOR D
 D = D << 6
 C = A AND 0b10111111
 A = C OR D
-//TODO: do the same for b now
+
+C = B AND 1
+C = C << 7
+A = A OR C
+B = B >> 1
+C = B AND 0b0111111
+B = C OR D
+
+from here, return A and B
 */
