@@ -1,6 +1,6 @@
 #include "pch.h"
 
-struct Audio
+struct SimplePlayer
 {
 	SDL_AudioSpec spec {};
 	SDL_AudioDeviceID dev_id;
@@ -10,7 +10,7 @@ struct Audio
 	Sint8 octave = 0;//relative to middle C 'C4'
 	Uint8 volume = 255;
 
-	Audio(const char * notes)
+	SimplePlayer(const char * notes)
 	{	
 		this->notes = notes;
 		spec.freq = 48000;
@@ -20,7 +20,7 @@ struct Audio
 		spec.userdata = this;
 		spec.callback = [](void* param, Uint8* stream, int len)
 		{
-			((Audio*)param)->callback(stream, len);
+			((SimplePlayer*)param)->callback(stream, len);
 		};
 		dev_id = SDL_OpenAudioDevice(nullptr, 0, &spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
 		SDL_PauseAudioDevice(dev_id, 0);
@@ -106,16 +106,225 @@ struct Audio
 	}
 };
 
+struct GBAudio
+{
+	SDL_AudioSpec spec{};
+	SDL_AudioDeviceID dev_id;
+
+	GBAudio()
+	{
+		spec.freq = 48000;
+		spec.format = AUDIO_U8;
+		spec.channels = 1;
+		spec.samples = 1024;
+		spec.userdata = this;
+		spec.callback = [](void* param, Uint8* stream, int len)
+		{
+			((GBAudio*)param)->callback(stream, len);
+		};
+		dev_id = SDL_OpenAudioDevice(nullptr, 0, &spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+		SDL_PauseAudioDevice(dev_id, 0);
+	}
+
+	void callback(Uint8 * target, int num_samples)
+	{
+
+	}
+};
+/*
+pulse 1
+
+P = sweeping period 3-bit unsigned
+S = sweep rate 4-bit signed
+D = duty cycle 2-bit, 4 choices (12.5%, 25%, 50%, 75%)
+L = length 6-bit unsigned
+V = volume 4-bit unsigned
+v = volume sweep 4-bit signed
+F = frequency 11-bit unsigned
+T = trigger switch
+L = length feature switch
+
+$FF10 _PPPSSSS
+$FF11 DDLLLLLL
+$FF12 VVVVvvvv
+$FF13 FFFFFFFF
+$FF14 TL___FFF
+*/
+struct GBAudioPulseA
+{
+	Uint8 frequency_sweep_period; //0b111 u
+	Uint8 frequency_sweep_rate; //0b1111 s
+	Uint8 duty_cycle; //0b11 u
+	Uint8 length; //0b111111 u
+	Uint8 volume; //0b1111 u
+	Uint8 volume_sweep; //0b1111 s
+	Uint16 frequency; //0b11111111111 u
+	bool trigger;
+	bool length_switch;
+};
+
+/*
+pulse 2
+
+D = duty cycle 2-bit, 4 choices (12.5%, 25%, 50%, 75%)
+L = length 6-bit unsigned
+V = volume 4-bit unsigned
+v = volume sweep 4-bit signed
+F = frequency 11-bit unsigned
+T = trigger switch
+L = length feature switch
+
+$FF16 DDLLLLLL
+$FF17 VVVVvvvv
+$FF18 FFFFFFFF
+$FF19 TL___FFF
+*/
+struct GBAudioPulseB
+{
+	Uint8 duty_cycle; //0b11 u
+	Uint8 length; //0b111111 u
+	Uint8 volume; //0b1111 u
+	Uint8 volume_sweep; //0b1111 s
+	Uint16 frequency; //0b11111111111 u
+	bool trigger;
+	bool length_switch;
+};
+
+/*
+wave
+
+L = length 8-bit unsigned
+V = volume 2-bit unsigned
+F = frequency 11-bit unsigned
+T = trigger switch
+L = length feature switch
+
+$FF1B LLLLLLLL
+$FF1C _VV_____
+$FF1D FFFFFFFF
+$FF1E TL___FFF
+*/
+struct GBAudioWave
+{
+	Uint8 length; //0b11111111 u
+	Uint8 volume; //0b11 u
+	Uint16 frequency; //0b11111111111 u
+	bool trigger;
+	bool length_switch;
+};
+
+/*
+noise, gets values from an LFSR of either 7 or 15 bits, polls F(S, H) times per second
+F(S, H) = 524288/(H * 2^S+1)
+F(S, 0) = 524288/2^S
+
+L = length 6-bit unsigned
+V = volume 4-bit unsigned
+v = volume sweep 4-bit signed
+S = part one of the frequency function 4-bit unsigned
+W = LFSR length switch (7-bit, 15-bit)
+H = part two of the frequency function 3-bit unsigned
+T = trigger switch
+L = length feature switch
+
+$FF20 __LLLLLL
+$FF21 VVVVvvvv
+$FF22 SSSSWHHH
+$FF23 TL______
+
+LFSR function(7-bit):
+7-bit int A - should be the last output of this function, or some seed value
+7-bit int B
+7-bit int C
+
+B = A AND 1
+A = A >> 1
+C = A AND 1
+C = B XOR C
+C = C << 6
+B = A AND 0b0111111
+A = B OR C
+
+from here, return A
+
+LFSR function(15-bit):
+8-bit int A - the low bits of the LFSR seed
+7-bit int B - the high bits of the LFSR seed
+7-bit int C
+7-bit int D
+
+C = A AND 1
+A = A >> 1
+D = A AND 1
+D = C XOR D
+D = D << 6
+C = A AND 0b10111111
+A = C OR D
+
+C = B AND 1
+C = C << 7
+A = A OR C
+B = B >> 1
+C = B AND 0b0111111
+B = C OR D
+
+from here, return A and B
+*/
+struct GBAudioNoise
+{
+	Uint8 length; //0b111111
+	Uint8 volume; //0b1111
+	Uint8 volume_sweep; //0b1111
+	Uint8 S; //0b1111
+	bool width;
+	Uint8 H; //0b111
+	bool trigger;
+	bool length_switch;
+};
+
+Uint8 LFSR(Uint8 seed)
+{
+	Uint8 A = seed;
+	Uint8 B = A & 0b1;
+	A = A >> 1;
+	Uint8 C = A & 0b1;
+	C = B ^ C;
+	C = C << 7;
+	A = A | C;
+	return A;
+}
+
+void callback(Uint8 * target, int num_samples, Uint8* pitch)
+{
+	
+}
+
 int main(int argc, char ** argv)
 {
 	SDL_InitSubSystem(SDL_INIT_AUDIO);
-	const char* notes = "AB";
-	Audio beeper(notes);
+	//const char* notes = "AB";
+	//SimplePlayer beeper(notes);
 
+	Uint8 s = 54;
+
+	SDL_AudioSpec spec {};
+	spec.freq = 48000;
+	spec.format = AUDIO_U8;
+	spec.channels = 1;
+	spec.samples = 1024;
+	spec.userdata = &s;
+	spec.callback = [](void* param, Uint8* stream, int len)
+	{
+		callback(stream, len, (Uint8*) param);
+	};
+	auto dev_id = SDL_OpenAudioDevice(nullptr, 0, &spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+	SDL_PauseAudioDevice(dev_id, 0);
+
+	printf("%d\n", s);
+	
 	for (;;)
 	{
 		SDL_Delay(500);
-		beeper.next_note();
 	}
 
 	SDL_Quit();

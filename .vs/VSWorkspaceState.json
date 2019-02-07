@@ -1,7 +1,12 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\SDL Audio",
+    "\\SDL Audio\\build",
+    "\\SDL Audio\\build\\x64",
+    "\\SDL Audio\\build\\x64\\Debug",
+    "\\SDL Audio\\src"
   ],
-  "SelectedNode": "\\SDL Audio.sln",
+  "SelectedNode": "\\SDL Audio\\src\\Application.cpp",
   "PreviewInSolutionExplorer": false
 }
