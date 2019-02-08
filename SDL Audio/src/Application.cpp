@@ -106,31 +106,6 @@ struct SimplePlayer
 	}
 };
 
-struct GBAudio
-{
-	SDL_AudioSpec spec{};
-	SDL_AudioDeviceID dev_id;
-
-	GBAudio()
-	{
-		spec.freq = 48000;
-		spec.format = AUDIO_U8;
-		spec.channels = 1;
-		spec.samples = 1024;
-		spec.userdata = this;
-		spec.callback = [](void* param, Uint8* stream, int len)
-		{
-			((GBAudio*)param)->callback(stream, len);
-		};
-		dev_id = SDL_OpenAudioDevice(nullptr, 0, &spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
-		SDL_PauseAudioDevice(dev_id, 0);
-	}
-
-	void callback(Uint8 * target, int num_samples)
-	{
-
-	}
-};
 /*
 pulse 1
 
@@ -294,33 +269,40 @@ Uint8 LFSR(Uint8 seed)
 	return A;
 }
 
-void callback(Uint8 * target, int num_samples, Uint8* pitch)
+struct GBAudio
 {
-	
-}
+	SDL_AudioSpec spec{};
+	SDL_AudioDeviceID dev_id;
+
+	GBAudioPulseA pulse1;
+	GBAudioPulseB pulse2;
+	GBAudioWave wave;
+	GBAudioNoise noise;
+
+	GBAudio()
+	{
+		spec.freq = 48000;
+		spec.format = AUDIO_U8;
+		spec.channels = 1;
+		spec.samples = 1024;
+		spec.userdata = this;
+		spec.callback = [](void* param, Uint8* stream, int len)
+		{
+			((GBAudio*)param)->callback(stream, len);
+		};
+		dev_id = SDL_OpenAudioDevice(nullptr, 0, &spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+		SDL_PauseAudioDevice(dev_id, 0);
+	}
+
+	void callback(Uint8 * target, int num_samples)
+	{
+
+	}
+};
 
 int main(int argc, char ** argv)
 {
 	SDL_InitSubSystem(SDL_INIT_AUDIO);
-	//const char* notes = "AB";
-	//SimplePlayer beeper(notes);
-
-	Uint8 s = 54;
-
-	SDL_AudioSpec spec {};
-	spec.freq = 48000;
-	spec.format = AUDIO_U8;
-	spec.channels = 1;
-	spec.samples = 1024;
-	spec.userdata = &s;
-	spec.callback = [](void* param, Uint8* stream, int len)
-	{
-		callback(stream, len, (Uint8*) param);
-	};
-	auto dev_id = SDL_OpenAudioDevice(nullptr, 0, &spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
-	SDL_PauseAudioDevice(dev_id, 0);
-
-	printf("%d\n", s);
 	
 	for (;;)
 	{
